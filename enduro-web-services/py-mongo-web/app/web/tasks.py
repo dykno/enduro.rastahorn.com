@@ -15,7 +15,7 @@ def parse_event(strava_event):
     # Make sure we're in the 'tokens' collection
     db_collection = db.results
 
-    result_id = db_collection.insert({
+    db_collection.insert({
         'object_id': strava_event['object_id']
     })
 
