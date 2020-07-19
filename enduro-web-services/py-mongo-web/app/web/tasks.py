@@ -4,6 +4,7 @@ from mongodriver import MongoDriver
 #REFERENCE: https://github.com/nickjj/build-a-saas-app-with-flask/blob/master/snakeeyes/blueprints/contact/tasks.py
 celery = create_celery_app()
 
+# Standup a connection to Mongo
 db_driver = MongoDriver()
 db_client = db_driver.db_connection('enduro-db', 'enduro')
 
@@ -12,7 +13,7 @@ def parse_event(strava_event):
     # Finalize our Mongo connection to store our token
     db = db_client.enduro
 
-    # Make sure we're in the 'tokens' collection
+    # Make sure we're in the 'results' collection
     db_collection = db.results
 
     db_collection.insert({

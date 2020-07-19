@@ -201,7 +201,7 @@ def inbound_event_callback():
             hub_challenge = '{ "hub.challenge": "%s" }' % request.args.get('hub.challenge')
             return Response(hub_challenge, mimetype='application/json'), 200
         else:
-            return '404!'
+            return '404!', 404
 
     # Check if we're handling an inbound event
     elif request.method == 'POST' and request.json is not None:
@@ -215,21 +215,4 @@ def inbound_event_callback():
     else:
         print('Returning 404 since our parameters are not met.')
         print(request.json)
-        return '404!'
-
-@flask_app.route('/speedtest/today', methods=['GET'])
-def get_speedtest_today():
-    db = db_client.speedtest
-    collection = db.results
-    
-    now = datetime.now()
-
-    query_result = collection.find({'timestamp':{'$lt': now.timestamp(), '$gt': (now - timedelta(hours=24)).timestamp()}})
-    #query_result = collection.find({'timestamp':'test'})
-    results = []
-    for doc in query_result:
-        print('%s - %s' % (type(doc), doc))
-        [doc.pop(key) for key in ['client', '_id']]
-        results.append(doc)
-    
-    return str(results)
+        return '404!', 404
