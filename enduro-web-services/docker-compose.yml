@@ -1,0 +1,111 @@
+version: '3.7'
+services:
+    web-gateway:
+        build: web-gateway/
+        container_name: web-gateway
+        ports: 
+            - '80:80'
+            - '443:443'
+        command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+        volumes:
+            - ./data/certbot/conf:/etc/letsencrypt
+            - ./data/certbot/www:/var/www/certbot
+            - ./data/logs/nginx:/var/log/nginx
+    
+    certbot:
+        image: certbot/certbot
+        container_name: certbot
+        entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${1}; done'"
+        volumes:
+            - ./data/certbot/conf:/etc/letsencrypt
+            - ./data/certbot/www/:/var/www/certbot
+
+    celery-redis:
+        image: redis
+        container_name: celery-redis
+   
+    py-mongo-web:
+        build: py-mongo-web
+        container_name: py-mongo-web
+        environment:
+            - PYTHONUNBUFFERED=1
+            - MONGO_USERNAME=/run/secrets/enduro-db_api_username
+            - MONGO_PASSWORD=/run/secrets/enduro-db_api_password
+            - APP_SECRET=/run/secrets/py-mongo-web_app-secret
+            - STRAVA_CONFIG=/run/secrets/strava-config
+        entrypoint:
+            - gunicorn
+            - --bind
+            - 0.0.0.0:5000
+            - wsgi:flask_app
+        volumes:
+                - ./data/logs/py-mongo-web/:/var/log/py-mongo-web
+        secrets:
+            - enduro-db_api_username
+            - enduro-db_api_password
+            - py-mongo-web_app-secret
+            - strava-config
+    
+    worker:
+        build: py-mongo-web
+        container_name: worker
+        environment:
+            - PYTHONUNBUFFERED=1
+            - MONGO_USERNAME=/run/secrets/enduro-db_api_username
+            - MONGO_PASSWORD=/run/secrets/enduro-db_api_password
+            - APP_SECRET=/run/secrets/py-mongo-web_app-secret
+            - STRAVA_CONFIG=/run/secrets/strava-config
+        volumes:
+                - ./data/logs/py-mongo-web/:/var/log/py-mongo-web
+        secrets:
+            - enduro-db_api_username
+            - enduro-db_api_password
+            - py-mongo-web_app-secret
+            - strava-config
+        command: celery -A app.web.tasks worker
+
+    py-mongo-tokenizer:
+        build: py-mongo-tokenizer
+        container_name: py-mongo-tokenizer
+        command: "/bin/sh -c 'while :; do sleep 1h & wait $${1}; python3 token_renew.py; done'"
+        environment:
+            - PYTHONUNBUFFERED = 1
+            - MONGO_USERNAME=/run/secrets/enduro-db_api_username
+            - MONGO_PASSWORD=/run/secrets/enduro-db_api_password
+            - STRAVA_CONFIG=/run/secrets/strava-config
+        secrets:
+            - enduro-db_api_username
+            - enduro-db_api_password
+            - strava-config
+
+    enduro-db:
+        image: mongo
+        container_name: enduro-db
+        environment:
+            - MONGO_INITDB_ROOT_USERNAME_FILE=/run/secrets/enduro-db_root_username
+            - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/enduro-db_root_password
+            - MONGO_INITDB_DATABASE=enduro
+            - MONGO_INITDB_USERNAME=/run/secrets/enduro-db_api_username
+            - MONGO_INITDB_PASSWORD=/run/secrets/enduro-db_api_password
+        volumes:
+            - ./data/db/enduro/:/data/db/
+            - ./enduro-db/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
+        secrets:
+            - enduro-db_root_username
+            - enduro-db_root_password
+            - enduro-db_api_username
+            - enduro-db_api_password
+
+secrets:
+    enduro-db_root_username:
+        file: ./data/secrets/enduro-db_root_username
+    enduro-db_root_password:
+        file: ./data/secrets/enduro-db_root_password
+    enduro-db_api_username:
+        file: ./data/secrets/enduro-db_api_username
+    enduro-db_api_password:
+        file: ./data/secrets/enduro-db_api_password
+    py-mongo-web_app-secret:
+        file: ./data/secrets/py-mongo-web_app-secret
+    strava-config:
+        file: ./data/secrets/strava-config

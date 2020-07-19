@@ -1,0 +1,12 @@
+# Exclude directories related to CertBot for security purposes
+enduro-web-services/data/certbot/conf/
+# Exclude secrets directory for security purposes
+enduro-web-services/data/secrets/
+# Exclude database directories for performance and security purposes
+enduro-web-services/data/db/
+# Exclude logging directory for performance and security purposes
+enduro-web-services/data/logs/
+# Exdlue vim .swp files for performance purposes
+*.swp
+#Exclude .vscode
+.vscode

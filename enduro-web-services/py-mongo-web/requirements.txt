@@ -1,0 +1,7 @@
+celery
+flask
+gunicorn
+pymongo
+python-dotenv
+redis
+requests
