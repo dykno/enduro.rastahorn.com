@@ -30,7 +30,7 @@ def check_segments(activity_segments):
     # Seg 2: Julie's Line - 2719392528727979754
     # Seg 3: TBD
     # Seg 4: TBD
-    scappoose_segments = [2719392528725154538, 2719392528727979754]
+    scappoose_segments = [2719392528725154538, 1111, 2719392528727979754]
 
     # Cold Creek Segments
     # Seg 1: TBD
@@ -78,15 +78,44 @@ def check_segments(activity_segments):
 # order. For example: we want to make sure that everybody raced Segment 1 before Segment 2
 def match_segments(activity_segments, race_segments):
     result_segments = []
+    segment_index = 0
 
     for race_segment in race_segments:
         print('Looking for race segment: %s' % race_segment)
+
+        # Set a counter to see if we have looped through all the segments,
+        # If we have looped through all segments and don't find a match
+        # Then we'll need to handle the result as null or None.
+        # This could be common if Strava doesn't register a particular segment.
+        i = 0
         for activity_segment in activity_segments:
             print('Matching against: %s' % activity_segment['id'])
             if race_segment == activity_segment['id']:
                 print('SUCCESS - BREAKING')
-                result_segments.append(activity_segment)
-                break
+
+                # Next we need to check the index of our segment in the segment list.
+                # Since 'race_segments' is listed in the order that the segments need
+                # to occur, we can update the segment_index with each loop iteration.
+                if activity_segments.index(activity_segment) >= segment_index:
+                    segment_index = activity_segments.index(activity_segment)
+                    result_segments.append(activity_segment)
+                    i += 1
+                    break
+                
+                # If the segments are out of order then we should not accept the submission.
+                else:
+                    print('Segments are out of order. Invalidating submission.')
+                    result_segments = None
+                    return result_segments
+            else:
+                i += 1
+            
+            # If we reach the end of activity segments, add a None.
+            # This will make it easier to store and present valid result times.
+            if i == len(activity_segments):
+                print('Reached the end of activity segments and did not find a match. Marking segment as None')
+                result_segments.append(None)
+
     return result_segments
 
 
@@ -115,6 +144,7 @@ def parse_event(strava_event):
     if is_race_name(activity['name']):
         # Find where we raced and which segments we care about
         race, segments = check_segments(activity['segment_efforts'])
+
         # If we have a race and segments that matched, then we can pull values out
         if race and segments:
 
@@ -125,12 +155,30 @@ def parse_event(strava_event):
                 'ath_sex': athlete['sex'],
                 'ath_picture': athlete['profile'],
                 'race_name': race,
-                'act_total_time': activity['elapsed_time'],
-                'act_move_time': activity['moving_time'],
-                'act_start_time': activity['start_date_local'],
+                'race_total_time': activity['elapsed_time'],
+                'race_move_time': activity['moving_time'],
+                'race_start_time': activity['start_date_local'],
+                'race_elevation_gain': activity['total_elevation_gain'],
+                'race_average_speed': activity['average_speed'],
+                'race_max_speed': activity['max_speed']
             }
 
+            for segment in segments:
+                segment_index = segments.index(segment)
+                if segment:
+                    results['race_segment_%s_elapsed' % segment_index] = segment['elapsed_time']
+                    results['race_segment_%s_moving' % segment_index] = segment['moving_time']
+                else:
+                    results['race_segment_%s_elapsed' % segment_index] = None
+                    results['race_segment_%s_moving' % segment_index] = None
+
             print(race, segments, results)
+        # If we did not match any segments or the segments are out of order then
+        # do not record anything
+        else:
+            print('Did not find correct race segments for Racer %s -- Activity %s' % (strava_event['owner_id'], strava_event['object_id']))
+    else:
+        print('Did not find a valid activity name.')
 
     '''
     db_collection.insert({
