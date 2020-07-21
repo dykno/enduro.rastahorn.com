@@ -1,5 +1,7 @@
 from app import create_celery_app
+import json
 from mongodriver import MongoDriver
+from os import environ as env
 import requests
 
 #REFERENCE: https://github.com/nickjj/build-a-saas-app-with-flask/blob/master/snakeeyes/blueprints/contact/tasks.py
@@ -9,13 +11,17 @@ celery = create_celery_app()
 db_driver = MongoDriver()
 db_client = db_driver.db_connection('enduro-db', 'enduro')
 
+# Load Race Segments
+with open(env['RACE_CONFIG'], 'r') as file_in:
+    race_config = json.load(file_in)
+
 def is_race_name(activity_name):
     if activity_name.startswith('Sideline Cup'):
         return True
     else:
         return False
 
-def check_segments(activity_segments):
+def check_race_location(activity_segments):
 
     # Put all of our segment IDs into a list so we can compare them against
     # Segments that we actually care about.
@@ -25,62 +31,27 @@ def check_segments(activity_segments):
     for segment in activity_segments:
         segment_ids.append(segment['id'])
 
-    # Scappoose Segments
-    # Seg 1: SkeetBlade - 2719392528725154538
-    # Seg 2: Julie's Line - 2719392528727979754
-    # Seg 3: TBD
-    # Seg 4: TBD
-    scappoose_segments = [2719392528725154538, 1111, 2719392528727979754]
-
-    # Cold Creek Segments
-    # Seg 1: TBD
-    # Seg 2: TBD
-    # Seg 3: TBD
-    # Seg 4: TBD
-    coldcreek_segments = [99999, 999998]
-
-    # Post Segments
-    # Seg 1: TBD
-    # Seg 2: TBD
-    # Seg 3: TBD
-    # Seg 4: TBD
-    post_segments = [11111, 111112]
-
-    # Put all of our segment ID lists into sets so that we can do an intersection compare
+    race = None
     segment_ids_set = set(segment_ids)
-    scappoose_segments_set = set(scappoose_segments)
-    coldcreek_segments_set = set(coldcreek_segments)
-    post_segments_set = set(post_segments)
 
-    # Check if we have any common segment IDs to figure out which race we're dealing with.
-    # If we find a segment ID match, then we'll call match_segments() to do the data reduction.
-    if segment_ids_set.intersection(scappoose_segments_set):
-        race = 'Scappoose'
-        result_segments = match_segments(activity_segments, scappoose_segments)
+    for key in race_config:
+        race_location_set = set(race_config[key])
 
-    elif segment_ids_set.intersection(coldcreek_segments_set):
-        race = 'Cold Creek'
-        result_segments = match_segments(activity_segments, coldcreek_segments)
-
-    elif segment_ids_set.intersection(post_segments_set):
-        race = 'Post Canyon'
-        result_segments = match_segments(activity_segments, post_segments)
-    else:
-        race = None
-        result_segments = None
-
-    # Return where we raced and the segment dictionaries that we care about.
-    return race, result_segments
+        if segment_ids_set.intersection(race_location_set):
+            race = key
+            break
+    
+    return race
 
 # Loop through our activity segments and compare them against race segments.
 # The goal here is to drop any segments from the activity that we do not care about
 # and also make sure that the segments that we do care about happened in the correct
 # order. For example: we want to make sure that everybody raced Segment 1 before Segment 2
-def match_segments(activity_segments, race_segments):
+def match_race_segments(activity_segments, race):
     result_segments = []
     segment_index = 0
 
-    for race_segment in race_segments:
+    for race_segment in race_config[race]:
         print('Looking for race segment: %s' % race_segment)
 
         # Set a counter to see if we have looped through all the segments,
@@ -118,6 +89,18 @@ def match_segments(activity_segments, race_segments):
 
     return result_segments
 
+# Check if the user already has an existing result populated for this race location.
+def check_previous_race(db, owner_id, race_location):
+    db_collection = db.results
+
+    query_result = db_collection.find_one({'ath_id': owner_id, 'race_location': race_location})
+    
+    if query_result:
+        print('Found previous race for Racer %s -- Location %s' % (owner_id, race_location))
+        return True
+    else:
+        return False
+
 
 @celery.task
 def parse_event(strava_event):
@@ -142,43 +125,63 @@ def parse_event(strava_event):
 
     # Check if we have a valid event name
     if is_race_name(activity['name']):
-        # Find where we raced and which segments we care about
-        race, segments = check_segments(activity['segment_efforts'])
 
-        # If we have a race and segments that matched, then we can pull values out
-        if race and segments:
+        # Find where we raced. We'll check the segments in a different function.
+        # The checks are separated out to save us from processing events that are blatantly uninteresting to us
+        race_location = check_race_location(activity['segment_efforts'])
 
-            results = {
-                'ath_id': athlete['id'],
-                'ath_fname': athlete['firstname'],
-                'ath_lname': athlete['lastname'],
-                'ath_sex': athlete['sex'],
-                'ath_picture': athlete['profile'],
-                'race_name': race,
-                'race_total_time': activity['elapsed_time'],
-                'race_move_time': activity['moving_time'],
-                'race_start_time': activity['start_date_local'],
-                'race_elevation_gain': activity['total_elevation_gain'],
-                'race_average_speed': activity['average_speed'],
-                'race_max_speed': activity['max_speed']
-            }
+        # Check if the user already has an existing result populated for this race location.
+        # If they do have one, then toss this result because we only care about the first time they raced.
+        previous_race = check_previous_race(db, strava_event['owner_id'], race_location)
 
-            for segment in segments:
-                segment_index = segments.index(segment)
-                if segment:
-                    results['race_segment_%s_elapsed' % segment_index] = segment['elapsed_time']
-                    results['race_segment_%s_moving' % segment_index] = segment['moving_time']
-                else:
-                    results['race_segment_%s_elapsed' % segment_index] = None
-                    results['race_segment_%s_moving' % segment_index] = None
+        if race_location and not previous_race:
+            
+            # Find the segments that were completed
+            race_segments = match_race_segments(activity['segment_efforts'], race_location)
+            if race_segments:
 
-            print(race, segments, results)
-        # If we did not match any segments or the segments are out of order then
-        # do not record anything
+                # If we have a race and segments that matched, then we can pull values out to store them.
+                # Get the easy stuff first.
+                results = {
+                    'ath_id': athlete['id'],
+                    'ath_fname': athlete['firstname'],
+                    'ath_lname': athlete['lastname'],
+                    'ath_sex': athlete['sex'],
+                    'ath_picture': athlete['profile'],
+                    'race_location': race_location,
+                    'race_total_time': activity['elapsed_time'],
+                    'race_move_time': activity['moving_time'],
+                    'race_start_time': activity['start_date_local'],
+                    'race_elevation_gain': activity['total_elevation_gain'],
+                    'race_average_speed': activity['average_speed'],
+                    'race_max_speed': activity['max_speed']
+                }
+
+                # Loop through the segments and store them in case some races have a different number of segments
+                for segment in race_segments:
+                    segment_index = race_segments.index(segment)
+                    if segment:
+                        results['race_segment_%s_elapsed' % segment_index] = segment['elapsed_time']
+                        results['race_segment_%s_moving' % segment_index] = segment['moving_time']
+                    else:
+                        results['race_segment_%s_elapsed' % segment_index] = None
+                        results['race_segment_%s_moving' % segment_index] = None
+
+                db_collection = db.results
+                
+                db_collection.insert(results)
+
+            # If we found that the segments were out of order do not record anything
+            else:
+                print('Did not find correct race segments for Racer %s -- Activity %s' % (strava_event['owner_id'], strava_event['object_id']))
+
+        # If we did not find any segments that allow us to determine a location do not record anything
         else:
-            print('Did not find correct race segments for Racer %s -- Activity %s' % (strava_event['owner_id'], strava_event['object_id']))
+            print('Could not determine race location for Racer %s -- Activity %s' % (strava_event['owner_id'], strava_event['object_id']))
+
+    # If we did not find a valid activity name do not record anything
     else:
-        print('Did not find a valid activity name.')
+        print('Did not find valid activity name for Racer %s -- Activity %s' % (strava_event['owner_id'], strava_event['object_id']))
 
     '''
     db_collection.insert({
