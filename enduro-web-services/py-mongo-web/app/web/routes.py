@@ -32,7 +32,32 @@ def requires_auth(f):
 
 @flask_app.route('/')
 def index():
-    return render_template('index.html')
+
+    # Connect to the enduro DB and results collection
+    db = db_client.enduro
+    db_collection = db.results
+
+    # Get all of the scappoose race results
+    query_result = db_collection.find({'race_location': 'scappoose'})
+
+    results = []
+
+    # Loop through all the results so we can clean them up a bit
+    for doc in query_result:
+        # Remove unneeded fields
+        [doc.pop(key) for key in ['_id']]
+
+        # Convert 'seconds' fields to minutes:seconds
+        doc['race_total_time'] = str(timedelta(seconds=doc['race_total_time']))
+        doc['race_move_time'] = str(timedelta(seconds=doc['race_move_time']))
+
+        results.append(doc)
+
+
+
+
+
+    return render_template('index.html', data = results)
 
 # Handle initial User Authorization for Strava's OAuth.
 # If the user grants access, we'll hit the /callback URI so we can get tokens.
