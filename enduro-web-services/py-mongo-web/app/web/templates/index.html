@@ -2,8 +2,8 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <title>COVID Dirt Cup</title>
-        <link rel="stylesheet" href="static/css/speedtrap.css">
+        <title>Sideline Cup</title>
+        <link rel="stylesheet" href="static/css/enduro.css">
         <link rel="icon" href="static/images/icons/favicon-32.png" sizes="32x32">
         <link rel="icon" href="static/images/icons/favicon-57.png" sizes="57x57">
         <link rel="icon" href="static/images/icons/favicon-76.png" sizes="76x76">
@@ -11,16 +11,17 @@
         <link rel="icon" href="static/images/icons/favicon-128.png" sizes="128x128">
         <link rel="icon" href="static/images/icons/favicon-192.png" sizes="192x192">
         <link rel="icon" href="static/images/icons/favicon-228.png" sizes="228x228">
+        <script src="static/scripts/enduro.js"></script>
+        <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     </head>
     <body>
         <div class="login-box auth0-box before">
             <a class="btn btn-primary btn-lg btn-login btn-block" href="/login">Log In</a>
         </div>
+        <div id="results_table" class="flex-table">
+
+        </div>
 
         <h1>Test</h1>
-        {% for result in data %}
-            <p{{result}}></p>
-        {% endfor %}
-
     </body>
 </html>

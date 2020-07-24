@@ -32,32 +32,7 @@ def requires_auth(f):
 
 @flask_app.route('/')
 def index():
-
-    # Connect to the enduro DB and results collection
-    db = db_client.enduro
-    db_collection = db.results
-
-    # Get all of the scappoose race results
-    query_result = db_collection.find({'race_location': 'scappoose'})
-
-    results = []
-
-    # Loop through all the results so we can clean them up a bit
-    for doc in query_result:
-        # Remove unneeded fields
-        [doc.pop(key) for key in ['_id']]
-
-        # Convert 'seconds' fields to minutes:seconds
-        doc['race_total_time'] = str(timedelta(seconds=doc['race_total_time']))
-        doc['race_move_time'] = str(timedelta(seconds=doc['race_move_time']))
-
-        results.append(doc)
-
-
-
-
-
-    return render_template('index.html', data = results)
+    return render_template('index.html')
 
 # Handle initial User Authorization for Strava's OAuth.
 # If the user grants access, we'll hit the /callback URI so we can get tokens.
@@ -200,3 +175,31 @@ def inbound_event_callback():
         print('Returning 404 since our parameters are not met.')
         print(request.json)
         return '404!', 404
+
+# Handle calls to get race results back in JSON format
+# This will make it easier to expose to Javascript for client-side tables
+@flask_app.route('/api/results')
+def api_results():
+
+    # Connect to the enduro DB and results collection
+    db = db_client.enduro
+    db_collection = db.results
+
+    # Get all of the scappoose race results
+    query_result = db_collection.find({'race_location': 'scappoose'}).sort('race_move_time')
+
+    results = []
+
+    # Loop through all the results so we can clean them up a bit
+    for doc in query_result:
+        # Remove unneeded fields
+        [doc.pop(key) for key in ['_id']]
+
+        # Convert 'seconds' fields to minutes:seconds
+        # TODO: Might not do this server side. Opting for client-side transform at the moment.
+        # doc['race_total_time'] = str(timedelta(seconds=doc['race_total_time']))
+        # doc['race_move_time'] = str(timedelta(seconds=doc['race_move_time']))
+
+        results.append(doc)
+
+    return jsonify(results)
