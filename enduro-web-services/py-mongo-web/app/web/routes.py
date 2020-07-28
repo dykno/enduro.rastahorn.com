@@ -26,7 +26,7 @@ def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'athlete' not in session:
-            return redirect('https://enduro.rastahorn.com')
+            return redirect('https://sideline.rastahorn.com')
         return f(*args, **kwargs)
     return decorated
 
@@ -43,7 +43,7 @@ def login():
         'response_type': 'code',
         'approval_prompt': 'auto',
         'scope': 'read,activity:read',
-        'redirect_uri': 'https://enduro.rastahorn.com/callback'
+        'redirect_uri': 'https://sideline.rastahorn.com/callback'
     }
     strava_authorize_query = urlencode(strava_authorize_dict)
     return redirect("https://www.strava.com/oauth/authorize/?" + strava_authorize_query)
@@ -121,7 +121,7 @@ def callback_handling():
             query_result = db_collection.find_one({'_id':ObjectId(result_id)})
             print('New token registered: %s' % query_result)
 
-        return redirect('https://enduro.rastahorn.com')
+        return redirect('https://sideline.rastahorn.com')
 
     # We shouldn't hit this since we should always get an error or success back from Strava.
     # TODO: Make this error page better.
@@ -134,7 +134,7 @@ def logout():
     # Clear session stored data
     session.clear()
     # Redirect user to home
-    return redirect('https://enduro.rastahorn.com')
+    return redirect('https://sideline.rastahorn.com')
 
 # Simple authentication check. We should only hit this if we have granted access to
 # a Strava account.
@@ -189,11 +189,28 @@ def api_results():
     query_result = db_collection.find({'race_location': 'scappoose'}).sort('race_move_time')
 
     results = []
+    overall_place = 1
+    empty_segment = False
 
     # Loop through all the results so we can clean them up a bit
     for doc in query_result:
         # Remove unneeded fields
         [doc.pop(key) for key in ['_id']]
+
+        # Add a new key for the overall place of each result.
+        # Since the results come out ordered by the DB, we can loop through and add an incrementing value
+        # We will also do a quick check to make sure that all segments were completed.
+        for key in doc:
+            if str(key).startswith('race_segment_') and doc[key] == None:
+                empty_segment = True
+        
+        if empty_segment:
+            doc['race_overall_place'] = 'DNF'
+        else:
+            doc['race_overall_place'] = overall_place
+            overall_place += 1
+
+        
 
         # Convert 'seconds' fields to minutes:seconds
         # TODO: Might not do this server side. Opting for client-side transform at the moment.

@@ -122,7 +122,7 @@ def parse_event(strava_event):
 
     activity = activity_response.json()
     athlete = athlete_response.json()
-
+    
     # Check if we have a valid event name
     if is_race_name(activity['name']):
 
@@ -158,6 +158,7 @@ def parse_event(strava_event):
                 }
 
                 # Loop through the segments and store them in case some races have a different number of segments
+                # We will also use this loop to calculate the total times that we care about.
                 for segment in race_segments:
                     segment_index = race_segments.index(segment)
                     if segment:

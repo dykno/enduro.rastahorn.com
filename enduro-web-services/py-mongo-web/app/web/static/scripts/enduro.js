@@ -18,7 +18,7 @@ function secondsToIso(seconds) {
 
 window.onload=function () {
 
-    $.getJSON('https://enduro.rastahorn.com/api/results', function(data) {
+    $.getJSON('https://sideline.rastahorn.com/api/results', function(data) {
         console.log(data);
 
         var tbl_body = document.createElement("tbody");
