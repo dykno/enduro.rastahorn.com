@@ -1,4 +1,5 @@
 function createCell(row, cell_data) {
+    
     var cell = row.insertCell();
     cell.appendChild(document.createTextNode(cell_data.toString()));
     return row;
@@ -6,14 +7,20 @@ function createCell(row, cell_data) {
 
 // Reference: http://www.javascriptkit.com/script/script2/mps.shtml
 function mpsToMph(speed) {
+
     var calculated = Math.round(speed * 3600 / 1610.3*1000)/1000;
     return calculated
 };
 
 // Reference: https://stackoverflow.com/questions/1322732/convert-seconds-to-hh-mm-ss-with-javascript
 function secondsToIso(seconds) {
-    var converted = new Date(seconds * 1000).toISOString().substr(11, 8);
-    return converted;
+
+    if (seconds == 'DNF') {
+        return 'DNF'
+    } else {
+        var converted = new Date(seconds * 1000).toISOString().substr(11, 8);
+        return converted;
+    }
 }
 
 window.onload=function () {
