@@ -33,6 +33,7 @@ services:
             - MONGO_PASSWORD=/run/secrets/enduro-db_api_password
             - APP_SECRET=/run/secrets/py-mongo-web_app-secret
             - STRAVA_CONFIG=/run/secrets/strava-config
+            - RACE_CONFIG=/run/secrets/race-config
         entrypoint:
             - gunicorn
             - --bind
@@ -45,6 +46,7 @@ services:
             - enduro-db_api_password
             - py-mongo-web_app-secret
             - strava-config
+            - race-config
     
     worker:
         build: py-mongo-web
@@ -55,6 +57,7 @@ services:
             - MONGO_PASSWORD=/run/secrets/enduro-db_api_password
             - APP_SECRET=/run/secrets/py-mongo-web_app-secret
             - STRAVA_CONFIG=/run/secrets/strava-config
+            - RACE_CONFIG=/run/secrets/race-config
         volumes:
                 - ./data/logs/py-mongo-web/:/var/log/py-mongo-web
         secrets:
@@ -62,6 +65,7 @@ services:
             - enduro-db_api_password
             - py-mongo-web_app-secret
             - strava-config
+            - race-config
         command: celery -A app.web.tasks worker
 
     py-mongo-tokenizer:
@@ -109,3 +113,5 @@ secrets:
         file: ./data/secrets/py-mongo-web_app-secret
     strava-config:
         file: ./data/secrets/strava-config
+    race-config:
+        file: ./data/secrets/race-config

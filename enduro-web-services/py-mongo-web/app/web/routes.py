@@ -26,57 +26,12 @@ def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'athlete' not in session:
-            return redirect('https://enduro.rastahorn.com')
+            return redirect('https://sideline.rastahorn.com')
         return f(*args, **kwargs)
     return decorated
 
 @flask_app.route('/')
 def index():
-    '''
-    db = client.speedtest
-    collection = db.results
-    
-    query_result = collection.find()
-    results = []
-    stats = {}
-    
-    # Loop through all results in the database
-    for doc in query_result:
-        
-        # Drop sensitive / unneeded fields
-        [doc.pop(key) for key in ['client', '_id']]
-
-        # Add to a list to generate table of all results
-        results.append(doc)
-
-        # Analyze each result to generate metrics        
-        for key in doc:
-            
-            # Disregard timestamp field
-            if key == 'timestamp':
-                continue
-            else:
-                # Make sure we have our dictionary setup correctly
-                if key not in stats:
-                    stats[key] = {}
-                    stats[key]['total'] = float(0)
-                    stats[key]['count'] = float(0)
-                
-                # Check if we're dealing with a field that is in an old format
-                # Tally up the result of each speedtest to calculate average
-                if not isinstance(doc[key], float):
-                    stats[key]['total'] += float(doc[key].rstrip(' Mbps'))
-                else:
-                    stats[key]['total'] += doc[key]
-
-            # Increment counter to calculate average
-            stats[key]['count'] += 1
-
-            # Calculate average and add it to the result's dictionary
-            stats[key]['avg'] = stats[key]['total'] / stats[key]['count']
-    
-    return render_template('index.html', data = results, stats = stats)
-    '''
     return render_template('index.html')
 
 # Handle initial User Authorization for Strava's OAuth.
@@ -88,7 +43,7 @@ def login():
         'response_type': 'code',
         'approval_prompt': 'auto',
         'scope': 'read,activity:read',
-        'redirect_uri': 'https://enduro.rastahorn.com/callback'
+        'redirect_uri': 'https://sideline.rastahorn.com/callback'
     }
     strava_authorize_query = urlencode(strava_authorize_dict)
     return redirect("https://www.strava.com/oauth/authorize/?" + strava_authorize_query)
@@ -166,7 +121,7 @@ def callback_handling():
             query_result = db_collection.find_one({'_id':ObjectId(result_id)})
             print('New token registered: %s' % query_result)
 
-        return redirect('https://enduro.rastahorn.com')
+        return redirect('https://sideline.rastahorn.com')
 
     # We shouldn't hit this since we should always get an error or success back from Strava.
     # TODO: Make this error page better.
@@ -179,7 +134,7 @@ def logout():
     # Clear session stored data
     session.clear()
     # Redirect user to home
-    return redirect('https://enduro.rastahorn.com')
+    return redirect('https://sideline.rastahorn.com')
 
 # Simple authentication check. We should only hit this if we have granted access to
 # a Strava account.
@@ -201,35 +156,104 @@ def inbound_event_callback():
             hub_challenge = '{ "hub.challenge": "%s" }' % request.args.get('hub.challenge')
             return Response(hub_challenge, mimetype='application/json'), 200
         else:
-            return '404!'
+            return '404!', 404
 
-    # Check if we're handling an inbound event
+    # Check if we're handling an inbound event by first checking for a POST method and a body
     elif request.method == 'POST' and request.json is not None:
-        if request.json['subscription_id'] == strava_config['subscription_id']:
+        # Then check if the POST data matches our subscription id and if we're dealing with an 'activity' update
+        if request.json['subscription_id'] == strava_config['subscription_id'] and request.json['object_type'] == 'activity':
+            # If we are, send the data over to a celery worker so we don't violate Strava's 2 second response time requirement
             from app.web.tasks import parse_event
             print(request.json)
             parse_event.delay(request.json)
             return 'OK', 200
+        else:
+            return '404!', 404
         
     # Handle anything that doesn't fit our needs.
     else:
         print('Returning 404 since our parameters are not met.')
         print(request.json)
-        return '404!'
+        return '404!', 404
 
-@flask_app.route('/speedtest/today', methods=['GET'])
-def get_speedtest_today():
-    db = db_client.speedtest
-    collection = db.results
-    
-    now = datetime.now()
+# Handle calls to get race results back in JSON format
+# This will make it easier to expose to Javascript for client-side tables
+@flask_app.route('/api/results')
+def api_results():
 
-    query_result = collection.find({'timestamp':{'$lt': now.timestamp(), '$gt': (now - timedelta(hours=24)).timestamp()}})
-    #query_result = collection.find({'timestamp':'test'})
+    # Connect to the enduro DB and results collection
+    db = db_client.enduro
+    db_collection = db.results
+
+    # Get all of the scappoose race results
+    query_result = db_collection.find({'race_location': 'scappoose'})
+
     results = []
+
+    # Loop through all the results so we can clean them up a bit
     for doc in query_result:
-        print('%s - %s' % (type(doc), doc))
-        [doc.pop(key) for key in ['client', '_id']]
+        empty_segment = False
+        # Remove unneeded fields
+        [doc.pop(key) for key in ['_id']]
+
+        # Add a new key for the total time of each race segment combined.
+        # We can't use the total_actitivy_time field because that would include transfers and climbs.
+        # We will also do a quick check to make sure that all segments were completed.
+        race_move_time = 0
+        race_total_time = 0
+
+        # Loop through each field in the race result
+        for key in doc:
+
+            # Check if we're dealing with a segment that does not have a time value (meaning that it wasn't completed)
+            if str(key).startswith('race_segment_') and doc[key] == None:
+                # Set a flag that we have an empty segment so we can record a DNF
+                empty_segment = True
+
+            # Check if we're dealing with a 'moving' time
+            elif str(key).startswith('race_segment_') and str(key).endswith('moving'):
+                race_move_time += doc[key]
+
+            # Check if we're dealing with a 'total' time
+            elif str(key).startswith('race_segment_') and str(key).endswith('elapsed'):
+                race_total_time += doc[key]
+            
+            # Skip anything else
+            else:
+                continue
+        
+        if empty_segment:
+            doc['race_overall_place'] = 'DNF'
+            doc['race_move_time'] = 'DNF'
+            doc['race_total_time'] = 'DNF'
+            doc['race_time_behind'] = 'DNF'
+        else:
+            doc['race_move_time'] = race_move_time
+            doc['race_total_time'] = race_total_time
+
+        # Convert 'seconds' fields to minutes:seconds
+        # TODO: Might not do this server side. Opting for client-side transform at the moment.
+        # doc['race_total_time'] = str(timedelta(seconds=doc['race_total_time']))
+        # doc['race_move_time'] = str(timedelta(seconds=doc['race_move_time']))
+
         results.append(doc)
-    
-    return str(results)
+
+    # Sort the completed times
+    # Reference: https://stackoverflow.com/a/18411598
+    # We need to go through this effort to make it easier to show all the results in the order that we care about
+    # Which is the fastest overall moving time
+    results = sorted(results, key = lambda i: float('inf') if i['race_move_time'] is 'DNF' else i['race_move_time'])
+
+    # Assign a numerical place to each result unless it was a DNF result.
+    for result in results:
+        list_index = results.index(result)
+        if 'race_overall_place' not in result:
+            result['race_overall_place'] = list_index + 1
+            if list_index == 0:
+                result['race_time_behind'] = 0
+            else:
+                result['race_time_behind'] = result['race_move_time'] - results[0]['race_move_time']
+        else:
+            continue
+
+    return jsonify(results)
