@@ -149,12 +149,12 @@ def parse_event(strava_event):
                     'ath_sex': athlete['sex'],
                     'ath_picture': athlete['profile'],
                     'race_location': race_location,
-                    'race_total_time': activity['elapsed_time'],
-                    'race_move_time': activity['moving_time'],
-                    'race_start_time': activity['start_date_local'],
-                    'race_elevation_gain': activity['total_elevation_gain'],
-                    'race_average_speed': activity['average_speed'],
-                    'race_max_speed': activity['max_speed']
+                    'activity_total_time': activity['elapsed_time'],
+                    'activity_move_time': activity['moving_time'],
+                    'activity_start_time': activity['start_date_local'],
+                    'activity_elevation_gain': activity['total_elevation_gain'],
+                    'activity_average_speed': activity['average_speed'],
+                    'activity_max_speed': activity['max_speed']
                 }
 
                 # Loop through the segments and store them in case some races have a different number of segments

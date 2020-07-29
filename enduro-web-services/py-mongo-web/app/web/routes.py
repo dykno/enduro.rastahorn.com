@@ -186,31 +186,50 @@ def api_results():
     db_collection = db.results
 
     # Get all of the scappoose race results
-    query_result = db_collection.find({'race_location': 'scappoose'}).sort('race_move_time')
+    query_result = db_collection.find({'race_location': 'scappoose'})
 
     results = []
-    overall_place = 1
-    empty_segment = False
 
     # Loop through all the results so we can clean them up a bit
     for doc in query_result:
+        empty_segment = False
         # Remove unneeded fields
         [doc.pop(key) for key in ['_id']]
 
-        # Add a new key for the overall place of each result.
-        # Since the results come out ordered by the DB, we can loop through and add an incrementing value
+        # Add a new key for the total time of each race segment combined.
+        # We can't use the total_actitivy_time field because that would include transfers and climbs.
         # We will also do a quick check to make sure that all segments were completed.
+        race_move_time = 0
+        race_total_time = 0
+
+        # Loop through each field in the race result
         for key in doc:
+
+            # Check if we're dealing with a segment that does not have a time value (meaning that it wasn't completed)
             if str(key).startswith('race_segment_') and doc[key] == None:
+                # Set a flag that we have an empty segment so we can record a DNF
                 empty_segment = True
+
+            # Check if we're dealing with a 'moving' time
+            elif str(key).startswith('race_segment_') and str(key).endswith('moving'):
+                race_move_time += doc[key]
+
+            # Check if we're dealing with a 'total' time
+            elif str(key).startswith('race_segment_') and str(key).endswith('elapsed'):
+                race_total_time += doc[key]
+            
+            # Skip anything else
+            else:
+                continue
         
         if empty_segment:
             doc['race_overall_place'] = 'DNF'
+            doc['race_move_time'] = 'DNF'
+            doc['race_total_time'] = 'DNF'
+            doc['race_time_behind'] = 'DNF'
         else:
-            doc['race_overall_place'] = overall_place
-            overall_place += 1
-
-        
+            doc['race_move_time'] = race_move_time
+            doc['race_total_time'] = race_total_time
 
         # Convert 'seconds' fields to minutes:seconds
         # TODO: Might not do this server side. Opting for client-side transform at the moment.
@@ -218,5 +237,23 @@ def api_results():
         # doc['race_move_time'] = str(timedelta(seconds=doc['race_move_time']))
 
         results.append(doc)
+
+    # Sort the completed times
+    # Reference: https://stackoverflow.com/a/18411598
+    # We need to go through this effort to make it easier to show all the results in the order that we care about
+    # Which is the fastest overall moving time
+    results = sorted(results, key = lambda i: float('inf') if i['race_move_time'] is 'DNF' else i['race_move_time'])
+
+    # Assign a numerical place to each result unless it was a DNF result.
+    for result in results:
+        list_index = results.index(result)
+        if 'race_overall_place' not in result:
+            result['race_overall_place'] = list_index + 1
+            if list_index == 0:
+                result['race_time_behind'] = 0
+            else:
+                result['race_time_behind'] = result['race_move_time'] - results[0]['race_move_time']
+        else:
+            continue
 
     return jsonify(results)
