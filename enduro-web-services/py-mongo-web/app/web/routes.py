@@ -242,7 +242,7 @@ def api_results():
     # Reference: https://stackoverflow.com/a/18411598
     # We need to go through this effort to make it easier to show all the results in the order that we care about
     # Which is the fastest overall moving time
-    results = sorted(results, key = lambda i: float('inf') if i['race_move_time'] is 'DNF' else i['race_move_time'])
+    results = sorted(results, key = lambda i: float('inf') if i['race_move_time'] == 'DNF' else i['race_move_time'])
 
     # Assign a numerical place to each result unless it was a DNF result.
     for result in results:
