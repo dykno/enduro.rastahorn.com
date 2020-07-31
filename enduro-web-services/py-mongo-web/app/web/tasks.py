@@ -16,7 +16,7 @@ with open(env['RACE_CONFIG'], 'r') as file_in:
     race_config = json.load(file_in)
 
 def is_race_name(activity_name):
-    if activity_name.startswith('Sideline Cup'):
+    if activity_name.startswith('Sideline'):
         return True
     else:
         return False
@@ -29,7 +29,7 @@ def check_race_location(activity_segments):
     # Care about for the race so we need to do some data reduction.
     segment_ids = []
     for segment in activity_segments:
-        segment_ids.append(segment['id'])
+        segment_ids.append(segment['segment']['id'])
 
     race = None
     segment_ids_set = set(segment_ids)
@@ -60,8 +60,8 @@ def match_race_segments(activity_segments, race):
         # This could be common if Strava doesn't register a particular segment.
         i = 0
         for activity_segment in activity_segments:
-            print('Matching against: %s' % activity_segment['id'])
-            if race_segment == activity_segment['id']:
+            print('Matching against: %s' % activity_segment['segment']['id'])
+            if race_segment == activity_segment['segment']['id']:
                 print('SUCCESS - BREAKING')
 
                 # Next we need to check the index of our segment in the segment list.
@@ -159,14 +159,17 @@ def parse_event(strava_event):
 
                 # Loop through the segments and store them in case some races have a different number of segments
                 # We will also use this loop to calculate the total times that we care about.
+                segment_index = 0
                 for segment in race_segments:
-                    segment_index = race_segments.index(segment)
                     if segment:
                         results['race_segment_%s_elapsed' % segment_index] = segment['elapsed_time']
                         results['race_segment_%s_moving' % segment_index] = segment['moving_time']
                     else:
                         results['race_segment_%s_elapsed' % segment_index] = None
                         results['race_segment_%s_moving' % segment_index] = None
+                        print('race_segment_%s_moving' % segment_index)
+                        
+                    segment_index += 1
 
                 db_collection = db.results
                 
