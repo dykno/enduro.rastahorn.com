@@ -32,7 +32,24 @@ def requires_auth(f):
 
 @flask_app.route('/')
 def index():
-    return render_template('index.html')
+    if 'athlete' in session:
+        return render_template('index_auth.html')
+    else:
+        return render_template('index.html')
+
+@flask_app.route('/schedule')
+def schedule():
+    if 'athlete' in session:
+        return render_template('schedule_auth.html')
+    else:
+        return render_template('schedule.html')
+
+@flask_app.route('/results')
+def results():
+    if 'athlete' in session:
+        return render_template('results_auth.html')
+    else:
+        return render_template('results.html')
 
 # Handle initial User Authorization for Strava's OAuth.
 # If the user grants access, we'll hit the /callback URI so we can get tokens.
@@ -242,7 +259,7 @@ def api_results():
     # Reference: https://stackoverflow.com/a/18411598
     # We need to go through this effort to make it easier to show all the results in the order that we care about
     # Which is the fastest overall moving time
-    results = sorted(results, key = lambda i: float('inf') if i['race_move_time'] is 'DNF' else i['race_move_time'])
+    results = sorted(results, key = lambda i: float('inf') if i['race_move_time'] == 'DNF' else i['race_move_time'])
 
     # Assign a numerical place to each result unless it was a DNF result.
     for result in results:

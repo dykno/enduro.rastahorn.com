@@ -1,5 +1,120 @@
+@font-face {
+    font-family: 'Pitch Sans';
+    src: url(../fonts/PitchSans-Bold.otf);
+    font-weight: bold;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Pitch Sans';
+    src: url(../static/fonts/PitchSans-Semibold.otf);
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    background: #232323;
+
+    font-family: 'Pitch Sans';
+    font-style: normal;
+    font-weight: 600;
+    font-size: 36px;
+    line-height: 44px;
+    letter-spacing: -0.03em;
+
+    color: #E5E5E5;
+}
+
+.container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+.header {
+    position: fixed;
+    top: 25px;
+    width: 100%;
+    z-index: 99;
+}
+
+.content {
+    height: 100%;
+    position: relative;
+    width: 100%;
+}
+
+.content-main-text {
+    margin-left: 72px;
+    margin-top: 125px;
+    margin-right: 72px;
+    position: relative;
+}
+
+.link-icon {
+    border: 2.5px solid #858585;
+    box-sizing: border-box;
+    transform: rotate(135deg);
+}
+
+.content-main-text a {
+    text-decoration: none;
+    color: #E5E5E5;
+    transition: 0.3s;
+}
+
+.content-main-text a span{
+    opacity: 0;
+}
+
+.content-main-text a:visited {
+    text-decoration: none;
+    color: #E5E5E5;
+}
+
+.content-main-text a:hover {
+    color: #858585;
+}
+
+.content-main-text ul {
+    list-style: none;
+    padding-left: 0;
+}
+
 .flex-table {
     display: flex;
     flex-direction: row;
     justify-content: space-around;
+}
+
+
+.results-table {
+    font-size: 12px;
+    overflow: auto;
+}
+
+.results-table thead {
+    color: #858585;
+}
+
+.results-table thead td {
+    border-bottom: 1px solid #858585;
+}
+
+.results-table td {
+    padding-left: 5px;
+    padding-right: 10px;
+    border-right: 1px solid #858585;
+}
+
+.small {
+    font-size: 18px;
+    line-height: 22px;
+    letter-spacing: -0.03em;
+}
+
+.title {
+    color: #858585;
+    font-size: 24px;
 }
