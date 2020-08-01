@@ -10,3 +10,5 @@ enduro-web-services/data/logs/
 *.swp
 #Exclude .vscode
 .vscode
+#Exclude .DS_Store
+.DS_Store
