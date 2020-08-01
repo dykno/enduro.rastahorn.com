@@ -32,7 +32,24 @@ def requires_auth(f):
 
 @flask_app.route('/')
 def index():
-    return render_template('index.html')
+    if 'athlete' in session:
+        return render_template('index_auth.html')
+    else:
+        return render_template('index.html')
+
+@flask_app.route('/schedule')
+def schedule():
+    if 'athlete' in session:
+        return render_template('schedule_auth.html')
+    else:
+        return render_template('schedule.html')
+
+@flask_app.route('/results')
+def results():
+    if 'athlete' in session:
+        return render_template('results_auth.html')
+    else:
+        return render_template('results.html')
 
 # Handle initial User Authorization for Strava's OAuth.
 # If the user grants access, we'll hit the /callback URI so we can get tokens.
